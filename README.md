@@ -29,9 +29,10 @@ allprojects {
 **Step 2**. Add the dependency
 
 ```
-dependencies {
-    compile 'com.github.WhatWeCan:TCPClient:v1.0'
-}
+	dependencies {
+	        compile 'com.github.WhatWeCan:TCPClient:v1.0.1'
+	}
+
 ```
 
 2、使用方法
@@ -101,63 +102,70 @@ dependencies {
 接收数据
 ----
 
-使用广播接收者
+使用广播接收者进行数据的接收，自定义接收数据类型
 需要接收的广播的**action=服务器的ip地址:端口号**
 示例：192.168.5.75：8888
 
-**广播接收者示例**：
-
-```
-class RecTCPBroadcast extends BroadcastReceiver {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BaseRecParse myParse = new BaseRecParse();
-            List<byte[]> parse = myParse.parse();
-            if (parse.size() > 0) {
-                for (byte[] data :parse) {
-                    Log.e(TAG, "onReceive: 接收到的数据-" + new String(data));
-                }
-            } else {
-                Log.e(TAG, "onReceive: 没有数据符合规则");
-            }
-        }
-    }
-```
-
-BaseRecParse用于规范接收数据的格式，BasRecParse并没有写入规范，接收到的数据是什么就取出来什么。
-
-**支持自定义接收数据的格式**
-示例：
+**自定义接收数据类型**
 
 ```
 /**
- * 自定义处理方式
+ * 接收数据的类型
  */
 
-public class MyBaseRecParse extends BaseRecParse {
-    @Override
-    public List<byte[]> parse() {
-        ArrayList<byte[]> dataList = new ArrayList<>();
-        //待处理数据 data:byte[]
-        //自定义接收数据的协议
-        //示例：接收到的数据必须以$$(2个字节)开头 数据的大小（short,byte 2个字节 数据大小=2+2+数据大小）
-        int removeSize = 0;
+public class RecData {
+    private byte[] head;
+    private short len;
+    private byte[] data;
 
-        for (int i = 0; i < data.length - 1; i++) {
-            if (data[i] == '$' && data[i + 1] == '$') {
+    public RecData() {
+    }
+
+    public RecData(byte[] head, short len, byte[] data) {
+        this.head = head;
+        this.len = len;
+        this.data = data;
+    }
+    //省略 getter setter
+}
+```
+
+```
+/**
+ * 自定义转换规则
+ * 自定义接收数据的协议
+ * 示例：接收到的数据必须以$$(2个字节)开头 数据的大小（short,byte 2个字节 数据大小=2+2+数据大小）
+ */
+
+public class MyRecParse extends BaseRecParse<RecData> {
+    private static final String TAG = "MyRecdataFilter";
+
+    @Override
+    public List<RecData> parse() {
+        ArrayList<RecData> recDataList = new ArrayList<>();
+        byte[] baseData = getBaseData();//总数据
+
+        int removeSize = 0;
+        byte[] head = new byte[2];
+
+        for (int i = 0; i < baseData.length - 1; i++) {
+            if (baseData[i] == '$' && baseData[i + 1] == '$') {
                 //找到头了 进一步进行处理
                 //然后两个字节是数据长度
-                short dataLen = DigitalUtils.byte2Short(data, i + 2);
-                Log.e(TAG, "parse: dataLen=" + data.length);
-                Log.e(TAG, "parse: recLen=" + dataLen);
-                if (data.length - i + 1 > dataLen) {//说明数据完整
+                short dataLen = DigitalUtils.byte2Short(baseData, i + 2);
+                if (baseData.length - i + 1 > dataLen) {//说明数据完整
                     Log.e(TAG, "parse: 有完整的数据");
-                    byte[] bytes = new byte[dataLen];
-                    System.arraycopy(data, i, bytes, 0, dataLen);
+                    byte[] recData = new byte[dataLen];
+                    System.arraycopy(baseData, i, recData, 0, dataLen);
                     i += dataLen - 1;
-                    dataList.add(bytes);
                     removeSize += dataLen;
+
+                    //头
+                    head[0] = baseData[i];
+                    head[1] = baseData[i + 1];
+                    //长度 dataLen
+                    //数据 bytes
+                    recDataList.add(new RecData(head, dataLen, recData));
                 } else {
                     Log.e(TAG, "parse: nonono完整的数据");
                     break;//如果长度不足 就等着
@@ -167,16 +175,32 @@ public class MyBaseRecParse extends BaseRecParse {
             }
         }
         notifyLeftData(removeSize);
-        return dataList;
+        return recDataList;
     }
 }
 ```
 
+
+**广播接收者示例**：
+
 ```
-//获取指定数据格式下的返回数据
-BaseRecParse myParse = new MyBaseRecParse();
-List<byte[]> parse = myParse.parse();
+class RecTCPBroadcast extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            MyRecParse myRecParse = new MyRecParse();
+            List<RecData> parse = myRecParse.parse();
+            if (parse != null) {
+                for (RecData data : parse) {
+                    byte[] rec = data.getData();
+                    Log.e(TAG, "onReceive: " + new String(rec));
+                }
+            }
+        }
+    }
 ```
+
+BaseRecParse用于规范接收数据的格式.
 
 关闭连接
 ----
@@ -189,7 +213,7 @@ TCPClient.closeTcpAll();
 demo 演示
 -------
 
-![这里写图片描述](http://img.blog.csdn.net/20170629160503721?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvdTAxMjM5MTg3Ng==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
+![这里写图片描述](http://img.blog.csdn.net/20170630162519616?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvdTAxMjM5MTg3Ng==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
 
 服务器端截图：略
 
