@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
 /**
@@ -235,7 +236,7 @@ public class TCPClientOperation {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                while (!isCloseAll && socket.isConnected()) {
+                while (!isCloseAll && socket.isConnected() && !socket.isClosed()) {
                     //接收socket数据
                     try {
                         InputStream is = socket.getInputStream();
@@ -252,11 +253,12 @@ public class TCPClientOperation {
                         intent.setAction(socket.getInetAddress().getHostName() + ":" + socket.getPort());
                         instance.sendBroadcast(intent);
                     } catch (SocketTimeoutException ignored) {
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    } catch (SocketException e) {
                         if (socket.isClosed()) {
                             break;
                         }
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
                 }
             }

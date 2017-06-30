@@ -12,7 +12,6 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.tjstudy.tcplib.ITcpNetCallBack;
-import com.tjstudy.tcplib.BaseRecParse;
 import com.tjstudy.tcplib.TCPClient;
 
 import java.util.List;
@@ -129,15 +128,13 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            BaseRecParse myParse = new MyBaseRecParse();
-            List<byte[]> parse = myParse.parse();
-            if (parse.size() > 0) {
-                for (byte[] data :
-                        parse) {
-                    Log.e(TAG, "onReceive: 接收到的数据-" + new String(data));
+            MyRecParse myRecParse = new MyRecParse();
+            List<RecData> parse = myRecParse.parse();
+            if (parse != null) {
+                for (RecData data : parse) {
+                    byte[] rec = data.getData();
+                    Log.e(TAG, "onReceive: " + new String(rec));
                 }
-            } else {
-                Log.e(TAG, "onReceive: 没有数据符合规则");
             }
         }
     }
