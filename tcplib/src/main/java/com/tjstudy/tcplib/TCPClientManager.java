@@ -65,11 +65,7 @@ public class TCPClientManager {
         if (managerList.size() > 0) {
             for (Socket inner :
                     managerList) {
-                try {
-                    inner.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+               removeTcp(inner);
             }
         }
         managerList.clear();

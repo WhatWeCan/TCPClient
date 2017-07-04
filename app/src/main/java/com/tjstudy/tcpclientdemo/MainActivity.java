@@ -1,148 +1,127 @@
 package com.tjstudy.tcpclientdemo;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
-import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 
-import com.tjstudy.tcplib.ITcpNetCallBack;
+import com.tjstudy.tcpclientdemo.adapter.ChatAdapter;
+import com.tjstudy.tcpclientdemo.bean.ChatMess;
+import com.tjstudy.tcplib.RequestCallback;
+import com.tjstudy.tcplib.ResponseCallback;
 import com.tjstudy.tcplib.TCPClient;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
-    private RecTCPBroadcast recTCPBroadcast;
-    private EditText etSendData;
     private String ipAddress;
+    private RecyclerView rvChat;
+    private ChatAdapter chatAdapter;
+    private EditText etInput;
+    private Button btnSend;
+    private TCPClient tcpClient;
+    private ArrayList<ChatMess> chatMessList;
+    private LinearLayoutManager chatLayoutManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        ipAddress = "192.168.5.75";
-
-        recTCPBroadcast = new RecTCPBroadcast();
-        LocalBroadcastManager.getInstance(this)
-                .registerReceiver(recTCPBroadcast, new IntentFilter(ipAddress + ":8888"));
-
-        etSendData = (EditText) findViewById(R.id.et_send_content);
+        ipAddress = "192.168.5.69";
+        initNet();
+        initView();
     }
 
-    /**
-     * 点击事件：没有设置心跳 直接连接服务器
-     *
-     * @param view
-     */
-    public void onConnWithoutBreath(View view) {
-        TCPClient.with(this)
+    private void initNet() {
+        tcpClient = TCPClient.build()
                 .server(ipAddress, 8888)
-                .connect(new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-                        Log.e(TAG, "onSuccess: withoutBreath");
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-                        Log.e(TAG, "onFail: withoutBreath=" + failMess);
-                    }
-                });
+                .breath("heart".getBytes(), 6 * 1000)
+                .connTimeout(10 * 1000);
     }
 
-    /**
-     * 点击事件：关闭withoutBreath的TCP连接
-     *
-     * @param view
-     */
-    public void onConnWithoutBreathClose(View view) {
-        TCPClient.closeTcp(ipAddress, 8888);
-    }
+    private void initView() {
+        rvChat = (RecyclerView) findViewById(R.id.recycler_chat);
+        chatLayoutManager = new LinearLayoutManager(this);
+        rvChat.setLayoutManager(chatLayoutManager);
+        chatMessList = new ArrayList<>();
+        chatAdapter = new ChatAdapter(this, chatMessList);
+        rvChat.setAdapter(chatAdapter);
 
-    public void onConnWithBreath(View view) {
-        TCPClient.with(this)
-                .server(ipAddress, 8888)
-                .breath("heart...".getBytes(), 10 * 1000)
-                .connect(new ITcpNetCallBack() {
+        etInput = (EditText) findViewById(R.id.et_input);
+        btnSend = (Button) findViewById(R.id.btn_send);
+        btnSend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                final String sendMess = etInput.getText().toString();
+                ChatMess chatMess = new ChatMess();
+                chatMess.setType(2);
+                chatMess.setMesg(sendMess);
+                chatMessList.add(chatMess);
+                chatAdapter.notifyDataSetChanged();
+                chatLayoutManager.scrollToPosition(chatMessList.size() - 1);
+
+                tcpClient.request(sendMess.getBytes(), 8000, new RequestCallback() {
                     @Override
-                    public void onSuccess() {
-                        Log.e(TAG, "onSuccess: withoutBreath");
+                    public void onTimeout() {
+                        Log.e(TAG, "onTimeout:请求超时，稍后重试 ,关闭连接 ");
+                        TCPClient.closeTcp(ipAddress, 8888);
                     }
 
                     @Override
-                    public void onFail(String failMess) {
-                        Log.e(TAG, "onFail: withoutBreath=" + failMess);
+                    public void onFail(Throwable throwable) {
+                        handlerError(throwable);
                     }
-                });
-    }
-
-    public void onConnWithBreathClose(View view) {
-        TCPClient.closeTcp(ipAddress, 8888);
-    }
-
-    public void onSendDataWithBreath(View view) {
-        TCPClient.with(this)
-                .server(ipAddress, 8888)
-                .sendData(etSendData.getText().toString().getBytes(), 8000, new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-
-                    }
-                });
-    }
-
-    public void onSendDataWithoutBreath(View view) {
-        TCPClient.with(this)
-                .server(ipAddress, 8888)
-                .sendData(etSendData.getText().toString().getBytes(), 8000, new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-                        Log.e(TAG, "onSuccess: sendData without breath ok");
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-                        Log.e(TAG, "onFail: senddata without breath--" + failMess);
-                    }
-
-                    @Override
-                    protected void onTimeout() {
-                        super.onTimeout();
-                        Log.e(TAG, "onTimeout: 请求超时了");
-                    }
-                });
-    }
-
-    class RecTCPBroadcast extends BroadcastReceiver {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            MyRecParse myRecParse = new MyRecParse();
-            List<RecData> parse = myRecParse.parse();
-            if (parse != null) {
-                for (RecData data : parse) {
-                    byte[] rec = data.getData();
-                    Log.e(TAG, "onReceive: " + new String(rec));
-                }
+                }, responseCallback);
             }
-        }
+        });
+    }
+
+    private void handlerError(Throwable throwable) {
+        Log.e(TAG, "handlerError: 网络访问失败:" + throwable.getMessage());
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(recTCPBroadcast);
-        Log.e(TAG, "onDestroy: 执行clear操作");
+        TCPClient.closeTcp(ipAddress, 8888);
+    }
+
+    private ResponseCallback responseCallback = new ResponseCallback() {
+        @Override
+        public void onRec() {
+            MyRecParse myRecParse = new MyRecParse();
+            List<RecData> dataList = myRecParse.parse();
+            if (dataList.size() > 0) {
+                for (RecData recData :
+                        dataList) {
+                    ChatMess chatMess = new ChatMess();
+                    chatMess.setType(1);
+                    chatMess.setMesg(new String(recData.getData()));
+                    chatMessList.add(chatMess);
+                    chatAdapter.notifyDataSetChanged();
+                    chatLayoutManager.scrollToPosition(chatMessList.size() - 1);
+                }
+            }
+        }
+
+        @Override
+        public void onFail(Throwable throwable) {
+            handlerError(throwable);
+        }
+    };
+
+    /**
+     * 测试场景：不请求数据时，进行数据的接收 心跳时间间隔改短 6s
+     *
+     * @param view
+     */
+    public void onRecHeartTest(View view) {
+        tcpClient.onResponse(responseCallback);
     }
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/tv_rec"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_gravity="left"
+        android:layout_margin="10dp"
+        android:background="@drawable/shape_chat"
+        android:gravity="center|left"
+        android:padding="10dp"
+        android:text="接收到" />
+
+    <TextView
+        android:id="@+id/tv_send"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_gravity="right"
+        android:layout_margin="10dp"
+        android:background="@drawable/shape_chat"
+        android:gravity="center|left"
+        android:padding="10dp"
+        android:text="个人发送的" />
+</LinearLayout>
