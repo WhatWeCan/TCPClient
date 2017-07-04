@@ -30,7 +30,7 @@ allprojects {
 
 ```
 	dependencies {
-	        compile 'com.github.WhatWeCan:TCPClient:v1.0.1'
+	        compile 'com.github.WhatWeCan:TCPClient:v1.0.2'
 	}
 
 ```
@@ -38,75 +38,14 @@ allprojects {
 2、使用方法
 ------
 
-**连接到指定服务器**
-```
-		TCPClient.with(appContext)
-                .server("192.168.5.75", 8888)
-                .connect(new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-                       //操作执行成功
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-                       //操作执行失败 
-                    }
-                });
-```
-**连接到服务器，并设置心跳**
-心跳必须在连接时进行设置
-
-```
-		TCPClient.with(appContext)
-                .server("192.168.5.75", 8888)
-                .breath("heart...".getBytes(), 10 * 1000)
-                .connect(new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-                        //操作执行成功
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-                        //操作执行失败
-                    }
-                });
-```
-
-**发送数据**
-如果客户端已经close了，再发送数据时，会自动重连，连接时设置有心跳的 也会自动再发送心跳
-
-```
-		TCPClient.with(appContext)
-                .server("192.168.5.75", 8888)
-                .sendData(etSendData.getText().toString().getBytes(), 8000, new ITcpNetCallBack() {
-                    @Override
-                    public void onSuccess() {
-                        //操作执行成功
-                    }
-
-                    @Override
-                    public void onFail(String failMess) {
-                       //发送数据失败
-                    }
-
-                    @Override
-                    protected void onTimeout() {
-                        super.onTimeout();
-                        //读取数据超时
-                    }
-                });
-```
-
 接收数据
 ----
 
-使用广播接收者进行数据的接收，自定义接收数据类型
-需要接收的广播的**action=服务器的ip地址:端口号**
-示例：192.168.5.75：8888
+接收数据：判断连接是否存在；连接存在 则不进行操作（默认连接存在就一直接收数据），连接不存在，尝试进行重连操作，连接成功接收数据
 
-**自定义接收数据类型**
+**1、自定义接收数据处理方式**
+
+自定义接收数据类型
 
 ```
 /**
@@ -130,6 +69,7 @@ public class RecData {
 }
 ```
 
+自定义接收数据规则 示例
 ```
 /**
  * 自定义转换规则
@@ -138,7 +78,7 @@ public class RecData {
  */
 
 public class MyRecParse extends BaseRecParse<RecData> {
-    private static final String TAG = "MyRecdataFilter";
+    private static final String TAG = "MyRecParse";
 
     @Override
     public List<RecData> parse() {
@@ -179,46 +119,53 @@ public class MyRecParse extends BaseRecParse<RecData> {
     }
 }
 ```
-
-
-**广播接收者示例**：
+**2、开启接收数据**
 
 ```
-class RecTCPBroadcast extends BroadcastReceiver {
+TCPClient.build()
+          .server(ipAddress, 8888)
+          .breath("heart".getBytes(), 6 * 1000)
+          .connTimeout(10 * 1000)
+          .onResponse(responseCallback);
+```
 
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            MyRecParse myRecParse = new MyRecParse();
-            List<RecData> parse = myRecParse.parse();
-            if (parse != null) {
-                for (RecData data : parse) {
-                    byte[] rec = data.getData();
-                    Log.e(TAG, "onReceive: " + new String(rec));
-                }
+发送数据
+----
+发送数据：判断连接是否存在；连接存在 则直接发送数据，连接不存在，尝试进行重连操作，连接成功发送数据，并接收数据。
+
+```
+TCPClient.build()
+        .server(ipAddress, 8888)
+        .breath("heart".getBytes(), 6 * 1000)
+        .connTimeout(10 * 1000)
+        .request(sendMess.getBytes(), 8000, new RequestCallback() {
+            @Override
+            public void onTimeout() {
+                Log.e(TAG, "onTimeout:请求超时，稍后重试 ,关闭连接 ");
+                TCPClient.closeTcp(ipAddress, 8888);
             }
-        }
-    }
+
+            @Override
+            public void onFail(Throwable throwable) {
+                handlerError(throwable);
+            }
+        }, responseCallback);//接收数据回调
 ```
-
-BaseRecParse用于规范接收数据的格式.
-
 关闭连接
 ----
 
 关闭指定连接
 TCPClient.closeTcp(“192.168.5.75”, 8888);
-关闭所有连接
-TCPClient.closeTcpAll();
 
-demo 演示
+简易聊天demo 演示
 -------
 
-![这里写图片描述](http://img.blog.csdn.net/20170630162519616?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvdTAxMjM5MTg3Ng==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
+![这里写图片描述](http://img.blog.csdn.net/20170704120552841?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvdTAxMjM5MTg3Ng==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
 
 服务器端截图：略
 
 demo地址
 ------
 
-app：https://github.com/WhatWeCan/TCPClientTest
+app：https://github.com/WhatWeCan/TCPClient
 server:https://github.com/WhatWeCan/TCPServerDemo
